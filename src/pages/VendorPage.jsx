@@ -1,49 +1,81 @@
+
 import { useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 import { useVendors } from '../hooks/useVendors.js'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
+import { useAuth } from '../hooks/useAuth.js'
 import MenuList from '../components/MenuList.jsx'
 import { Loading, ErrorMessage } from '../components/Status.jsx'
 
 function VendorPage() {
-  // Read dynamic :id parameter from URL path (/vendor/:id)
+  // Get the vendor ID from the URL.
   const { id } = useParams()
 
-  // Access fetched vendor data and state handlers
+  // Get vendor data and loading/error states.
   const { vendors, loading, error, reload } = useVendors()
 
-  // Persist recently viewed items in browser storage
-  const [, setRecentlyViewed] = useLocalStorage('campuseats-recently-viewed', [])
+  // Get the currently signed-in user.
+  const { user } = useAuth()
 
-  // Find active vendor matching the URL id
-  const vendor = vendors.find((v) => String(v.id) === String(id))
+  // Create a separate Recently Viewed key for each user.
+  const recentKey = `ce-recent-${user?.uid ?? 'guest'}`
 
-  // Update recently viewed list when vendor is loaded (newest first, max 5, deduplicated)
+  // Save Recently Viewed only for signed-in users.
+  const [, setRecentlyViewed] = useLocalStorage(
+    recentKey,
+    [],
+    Boolean(user)
+  )
+
+  // Find the selected vendor.
+  const vendor = vendors.find(
+    (v) => String(v.id) === String(id)
+  )
+
+  // Update Recently Viewed when a vendor is opened.
   useEffect(() => {
-    if (vendor) {
+    if (vendor && user) {
       setRecentlyViewed((previous) => {
+        // Remove duplicate entries.
         const withoutCurrentVendor = previous.filter(
           (recent) => recent.id !== vendor.id
         )
+
+        // Add current vendor first and keep maximum five.
         return [
           { id: vendor.id, name: vendor.name },
-          ...withoutCurrentVendor
+          ...withoutCurrentVendor,
         ].slice(0, 5)
       })
     }
-  }, [vendor, setRecentlyViewed])
+  }, [vendor, user, setRecentlyViewed])
 
-  // Handle loading and error fetch states
-  if (loading) return <Loading />
-  if (error) return <ErrorMessage message={error} onRetry={reload} />
+  // Display loading state.
+  if (loading) {
+    return <Loading />
+  }
 
-  // Handle invalid vendor ID fallback
+  // Display error state.
+  if (error) {
+    return (
+      <ErrorMessage
+        message={error}
+        onRetry={reload}
+      />
+    )
+  }
+
+  // Handle invalid vendor ID.
   if (!vendor) {
     return (
       <section>
-        <h2 className="section-title">Vendor not found</h2>
+        <h2 className="section-title">
+          Vendor not found
+        </h2>
+
         <p className="muted">
-          There is no vendor called "{id}". <Link to="/">Back to vendors</Link>
+          There is no vendor called "{id}".{' '}
+          <Link to="/">Back to vendors</Link>
         </p>
       </section>
     )
@@ -51,12 +83,25 @@ function VendorPage() {
 
   return (
     <section>
-      <p><Link to="/">← All vendors</Link></p>
+      {/* Temporary navigation test */}
+      <p>
+        <button
+          type="button"
+          onClick={() => window.location.assign('/')}
+        >
+          ← All vendors
+        </button>
+      </p>
 
-      <h2 className="section-title">{vendor.name}</h2>
-      <p className="muted">{vendor.location} · {vendor.openHours}</p>
+      <h2 className="section-title">
+        {vendor.name}
+      </h2>
 
-      {/* Render menu items using MenuList component */}
+      <p className="muted">
+        {vendor.location} · {vendor.openHours}
+      </p>
+
+      {/* Display the vendor's menu items. */}
       <MenuList items={vendor.menu} />
     </section>
   )
